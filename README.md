@@ -36,7 +36,7 @@ WITH sleepy_users AS (
         SUM(pay_amount) AS total_amount
     FROM orders
     GROUP BY user_id
-    HAVING COUNT(order_id) >= 2 
+    HAVING COUNT(order_id) >= 2 --having聚合函数
        AND TIMESTAMPDIFF(DAY, MAX(order_time), '2026-09-01') > 90
 )
 -- 步骤2：关联用户表，按注册渠道进行二次聚合
@@ -50,3 +50,11 @@ GROUP BY u.channel
 HAVING COUNT(s.user_id) >= 3
 ORDER BY sleepy_user_cnt DESC, u.channel ASC;
 ```
+sql执行顺序：
+1. FROM / JOIN      ← 先找表
+2. WHERE            ← 过滤“行”（聚合前）
+3. GROUP BY         ← 分组
+4. 聚合函数         ← COUNT / SUM / AVG / STDDEV
+5. HAVING           ← 过滤“组”（聚合后）
+6. SELECT           ← 选列
+7. ORDER BY         ← 排序

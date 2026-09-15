@@ -7,7 +7,7 @@
 ## 📂 SQL 题解模块分类
 
 <details>
-<summary><b>1️⃣ 模块一：用户生命周期与流失与唤醒分析（User Lifecycle & Churn Analysis）</b></summary>
+<summary><b>🔥 模块一：用户生命周期与流失与唤醒分析（User Lifecycle & Churn Analysis）</b></summary>
 
 ### 1. 各注册渠道沉睡用户数及平均累计消费金额统计
 * **业务背景**：评估沉睡用户（下单 >= 2 笔且 > 90 天未消费）的渠道分布与唤醒优先级。
@@ -20,7 +20,7 @@
 用户运营团队计划开展“沉睡用户唤醒”活动，把历史有过购买、但长期未再消费的用户召回平台。现定义沉睡用户为：累计下单不少于2笔，且最近一笔订单的下单时间距统计基准日 2026-09-01 超过90天的用户。请统计各注册渠道的沉睡用户数量及其平均累计消费金额，用于评估各渠道的唤醒优先级。
 
 <details>
-<summary>👉 <b>点击展开查看解题思路与 SQL 代码</b></summary>
+<summary> 👉 <b>点击展开查看解题思路与 SQL 代码</b></summary>
 
 ### 📋 输入表结构
 
@@ -158,7 +158,7 @@ concurrent_stats AS (
         SUM(val) OVER (
             PARTITION BY session_id 
             ORDER BY event_time ASC, val DESC
-            ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
+            ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW --计算范围限制在 “从最开头的第一行 (UNBOUNDED PRECEDING) 到 当前行 (CURRENT ROW)”
         ) AS current_online
     FROM user_events
 ),
@@ -179,3 +179,8 @@ FROM session_peaks p
 JOIN live_sessions l ON p.session_id = l.session_id
 ORDER BY p.peak_concurrent_users DESC, l.session_id ASC
 LIMIT 3;
+```
+
+</details>
+</details>
+

@@ -79,3 +79,101 @@ GROUP BY u.channel
 HAVING COUNT(s.user_id) >= 3
 ORDER BY sleepy_user_cnt DESC, u.channel ASC;
 ```
+
+
+<details>
+<summary><b>🔥 模块二：直播流量与实时并发分析（Live Stream & PCU Analysis）</b></summary>
+
+<br>
+
+### 题目：直播间历史最大同时在线人数（峰值 PCU）计算
+* **业务场景**：**直播运营/内容治理/容量规划**。复盘各场直播流量高峰表现，计算最高同时在线人数（PCU）并筛选 Top3 标杆案例。
+* **核心考点**：`断点变迁法 (Event Mark Method)` + `UNION ALL 拆分进入/离开事件` + `窗口累加求和 (SUM() OVER)` + `最大峰值聚合 (MAX)`
+
+<details>
+<summary>👉 <b>点击展开查看题目完整描述、输入表结构与 SQL 代码</b></summary>
+
+#### 📋 题目背景
+直播运营团队需要复盘各场直播的流量高峰表现。观看日志表记录了用户进出直播间的行为（进入时间、离开时间）。一场直播的“同时在线人数”随用户进出动态变化：用户进入时加 1，离开时减 1。请统计每场直播的历史最大同时在线人数（峰值），并找出峰值最高的前 3 场直播，作为标杆案例在团队内推广。
+
+#### 📋 输入表结构
+
+* **`live_sessions` 表（直播场次表）**
+  * `session_id`：直播场次 ID (VARCHAR(20), PRIMARY KEY)
+  * `room_name`：直播间名称 (VARCHAR(50))
+* **`watch_logs` 表（观看行为日志表）**
+  * `log_id`：日志 ID (VARCHAR(20), PRIMARY KEY)
+  * `session_id`：直播场次 ID (VARCHAR(20))
+  * `user_id`：用户 ID (VARCHAR(20))
+  * `enter_time`：进入时间 (DATETIME)
+  * `leave_time`：离开时间 (DATETIME)
+
+#### 🎯 输出要求
+* **输出字段**：`session_id`（直播场次 ID）、`room_name`（直播间名称）、`peak_concurrent_users`（峰值同时在线人数）。
+* **计算逻辑**：
+  * **峰值定义**：该场直播过程中任一时刻在线用户数的最大值。
+  * **临界点处理**：若某用户离开与另一用户进入发生在同一时刻，该时刻两人视为同时在线（即先算进入 +1，后算离开 -1，或按同一时间戳合并计算）。
+  * **筛选规则**：仅输出峰值最高的前 3 场直播。
+* **排序规则**：按 `peak_concurrent_users` 降序排列；若峰值相同，按 `session_id` 升序排列。
+
+---
+
+#### 💡 解题思路与断点变迁法
+这种“区间重叠 / 最大同时在线”问题的标准解法是**事件拆分与累计求和（Event Marking & Running Total）**：
+1. **事件拆分**：把一条日志记录的 `enter_time` 和 `leave_time` 拆成两条独立的“变动事件”。
+   * 进入事件：变动值为 `+1`。
+   * 离开事件：变动值为 `-1`。
+2. **时间戳排序与累加**：按时间戳升序对所有事件进行排序，并使用窗口函数 `SUM(val) OVER(PARTITION BY session_id ORDER BY event_time)` 实时累加计算每个时刻的在线人数。
+   * *注意临界点*：题目规定“同一时刻进入与离开视为同时在线”，因此排序时先排 `+1`（进入），再排 `-1`（离开），确保峰值计算不会因先减后加而偏小。
+3. **求最大峰值并 TopN 排序**：按 `session_id` 分组取最大在线人数，最后关联直播场次信息取 Top3。
+
+---
+
+#### 答案 SQL 代码
+
+```sql
+WITH user_events AS (
+    -- 1. 将进入和离开拆分为独立事件，进入为 +1，离开为 -1
+    SELECT 
+        session_id, 
+        enter_time AS event_time, 
+        1 AS val
+    FROM watch_logs
+    
+    UNION ALL
+    
+    SELECT 
+        session_id, 
+        leave_time AS event_time, 
+        -1 AS val
+    FROM watch_logs
+),
+concurrent_stats AS (
+    -- 2. 经典窗口函数累加求和：计算每个时间节点的实时在线人数
+    -- ORDER BY event_time ASC, val DESC 保证同一时刻先加(+1)后减(-1)
+    SELECT 
+        session_id,
+        SUM(val) OVER (
+            PARTITION BY session_id 
+            ORDER BY event_time ASC, val DESC
+            ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
+        ) AS current_online
+    FROM user_events
+),
+session_peaks AS (
+    -- 3. 按场次分组，取每场直播的历史最大并发人数（峰值）
+    SELECT 
+        session_id,
+        MAX(current_online) AS peak_concurrent_users
+    FROM concurrent_stats
+    GROUP BY session_id
+)
+-- 4. 关联直播间信息，取 Top 3 输出
+SELECT 
+    l.session_id,
+    l.room_name,
+    p.peak_concurrent_users
+FROM session_peaks p
+JOIN live_sessions l ON p.session_id = l.session_id
+ORDER BY p.peak_concurrent_users DESC, l.session_id ASC
+LIMIT 3;

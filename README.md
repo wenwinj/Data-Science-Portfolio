@@ -135,7 +135,7 @@ ORDER BY sleepy_user_cnt DESC, u.channel ASC;
 
 ```sql
 WITH user_events AS (
-    -- 1. 将进入和离开拆分为独立事件，进入为 +1，离开为 -1
+    -- 1. 将进入和离开拆分为独立事件，进入为 +1，离开为 -1。将原来“一行记录包含进入和离开两个时间”的数据，垂直拆解（Unpivot）成“两条独立的时间变动事件”，一行变两行。
     SELECT 
         session_id, 
         enter_time AS event_time, 

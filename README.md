@@ -80,6 +80,7 @@ HAVING COUNT(s.user_id) >= 3
 ORDER BY sleepy_user_cnt DESC, u.channel ASC;
 ```
 
+</details>
 
 <details>
 <summary><b>🔥 模块二：直播流量与实时并发分析（Live Stream & PCU Analysis）</b></summary>
